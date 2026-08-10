@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบตรวจสอบแบบฟอร์มโครงการ & เช็คพิกัดเชิงพื้นที่ (Python Server)</title>
+
+  <!-- Google Fonts: Prompt & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- FileSaver Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --secondary: #0ea5e9;
+      --success: #10b981;
+      --danger: #ef4444;
+      --dark: #0f172a;
+      --gray-800: #1e293b;
+      --gray-600: #475569;
+      --gray-400: #94a3b8;
+      --gray-200: #e2e8f0;
+      --gray-100: #f8fafc;
+      --white: #ffffff;
+      --glass-bg: rgba(255, 255, 255, 0.9);
+      --glass-border: rgba(255, 255, 255, 0.4);
+      --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      --radius: 16px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Prompt', 'Inter', -apple-system, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 40%, #311b92 100%);
+      min-height: 100vh;
+      color: var(--gray-800);
+      padding: 2rem 1rem;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1150px;
+      margin: 0 auto;
+    }
+
+    /* Header Styling */
+    .header-card {
+      background: rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: var(--radius);
+      padding: 1.75rem 2rem;
+      color: var(--white);
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow-xl);
+      text-align: center;
+    }
+
+    .header-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+      background: linear-gradient(to right, #ffffff, #a5b4fc);
+      background-clip: text; 
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+
+    .header-subtitle {
+      font-size: 0.95rem;
+      color: #cbd5e1;
+      font-weight: 300;
+    }
+
+    .server-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      margin-top: 0.5rem;
+    }
+
+    /* Grid Layout: Split Excel & Coord Check */
+    .grid-container {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .grid-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Main Content Cards */
+    .main-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      box-shadow: var(--shadow-xl);
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--dark);
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    /* Drag & Drop Area */
+    .dropzone-container {
+      position: relative;
+      border: 2px dashed #818cf8;
+      background: rgba(238, 242, 255, 0.6);
+      border-radius: 16px;
+      padding: 2.25rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .dropzone-container:hover, .dropzone-container.dragover {
+      border-color: var(--primary);
+      background: rgba(224, 231, 255, 0.9);
+      transform: translateY(-2px);
+    }
+
+    .dropzone-icon {
+      font-size: 2.75rem;
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .dropzone-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--dark);
+      margin-bottom: 0.3rem;
+    }
+
+    .dropzone-desc {
+      font-size: 0.85rem;
+      color: var(--gray-600);
+      margin-bottom: 1rem;
+    }
+
+    .btn-select-file {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--primary);
+      color: var(--white);
+      padding: 0.65rem 1.5rem;
+      border-radius: 12px;
+      font-weight: 500;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+    }
+
+    .btn-select-file:hover { background: var(--primary-hover); }
+
+    #fileInput { display: none; }
+
+    /* Selected File Card */
+    .file-info-card {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--white);
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-top: 1.25rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .file-details { display: flex; align-items: center; gap: 0.85rem; }
+    .file-icon { font-size: 1.75rem; color: #16a34a; }
+    .file-name { font-weight: 600; color: var(--dark); font-size: 0.95rem; }
+    .file-size { font-size: 0.8rem; color: var(--gray-600); }
+
+    .btn-remove-file {
+      background: transparent;
+      border: none;
+      color: var(--gray-400);
+      font-size: 1.1rem;
+      cursor: pointer;
+      padding: 0.4rem;
+      border-radius: 6px;
+    }
+    .btn-remove-file:hover { color: var(--danger); background: #fef2f2; }
+
+    /* Action Buttons */
+    .action-container { margin-top: 1.5rem; display: flex; justify-content: center; }
+
+    .btn-verify {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      width: 100%;
+      background: linear-gradient(135deg, var(--primary) 0%, #4338ca 100%);
+      color: var(--white);
+      font-size: 1.05rem;
+      font-weight: 600;
+      padding: 0.9rem 1.5rem;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 6px 16px rgba(79, 70, 229, 0.3);
+      transition: all 0.25s ease;
+    }
+
+    .btn-verify:disabled {
+      background: var(--gray-400);
+      box-shadow: none;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    .btn-verify:not(:disabled):hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(79, 70, 229, 0.4);
+    }
+
+    /* Dashboard & Summary Cards */
+    .results-section {
+      display: none;
+      margin-top: 2rem;
+      animation: fadeInUp 0.4s ease forwards;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .summary-card {
+      background: var(--white);
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      border: 1px solid var(--gray-200);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .card-icon-wrapper {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+    }
+
+    .bg-blue { background: #e0f2fe; color: #0284c7; }
+    .bg-green { background: #dcfce7; color: #16a34a; }
+    .bg-red { background: #fee2e2; color: #dc2626; }
+
+    .card-info .label { font-size: 0.78rem; color: var(--gray-600); margin-bottom: 0.1rem; }
+    .card-info .value { font-size: 1.25rem; font-weight: 700; color: var(--dark); }
+
+    .status-banner {
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.25rem;
+      font-weight: 500;
+      font-size: 0.9rem;
+    }
+    .status-banner.success { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+    .status-banner.has-errors { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+
+    .download-bar { display: flex; justify-content: center; margin-top: 1.25rem; }
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--success);
+      color: var(--white);
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 0.8rem 1.75rem;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+      transition: all 0.2s ease;
+    }
+    .btn-download:hover { background: #059669; transform: translateY(-2px); }
+
+    /* Single Coord Checker Widget (Right Card - process_check2) */
+    .coord-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 2rem 1.5rem;
+      box-shadow: var(--shadow-xl);
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--gray-800);
+      margin-bottom: 0.35rem;
+    }
+
+    .input-field {
+      width: 100%;
+      padding: 0.7rem 0.9rem;
+      border: 1px solid var(--gray-200);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      background: var(--white);
+      color: var(--dark);
+      transition: border-color 0.2s ease;
+    }
+
+    .input-field:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    }
+
+    .btn-check-coord {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      background: var(--secondary);
+      color: var(--white);
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 0.75rem 1.25rem;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+      transition: all 0.2s ease;
+      margin-top: 0.5rem;
+    }
+
+    .btn-check-coord:hover {
+      background: #0284c7;
+      transform: translateY(-1px);
+    }
+
+    .coord-result-box {
+      margin-top: 1.25rem;
+      padding: 1.25rem;
+      background: var(--white);
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .res-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.4rem 0;
+      border-bottom: 1px dashed var(--gray-200);
+      font-size: 0.88rem;
+    }
+
+    .res-row:last-child { border-bottom: none; }
+    .res-label { color: var(--gray-600); font-weight: 400; }
+    .res-val { color: var(--dark); font-weight: 600; text-align: right; }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header-card">
+    <h1 class="header-title">
+      <i class="fa-solid fa-square-check"></i>
+      ระบบตรวจสอบแบบฟอร์ม สทนช.001 V2.1
+    </h1>
+    <p class="header-subtitle">วัตถุประสงค์ : ตรวจสอบไฟล์ Excel แบบฟอร์ม TWP001 และค้นหาตำแหน่งเชิงพื้นที่ตาม Shapefile / GeoJSON</p>
+    <div class="server-badge">
+      <i class="fa-brands fa-python"></i> Wep App สำหรับทดลองการตรวจสอบ  
+    </div>
+  </div>
+
+  <!-- Grid Split: Left = Excel Validation, Right = Lat/Long Single Lookup (process_check2) -->
+  <div class="grid-container">
+
+    <!-- LEFT COLUMN: Excel Verification -->
+    <div class="main-card">
+      <div class="card-title">
+        <i class="fa-solid fa-file-excel" style="color: #16a34a;"></i>
+        ตรวจสอบไฟล์แบบฟอร์ม TWP001 กรมทรัพยากรน้ำ
+      </div>
+
+      <!-- Drag & Drop Zone -->
+      <div class="dropzone-container" id="dropzone" onclick="document.getElementById('fileInput').click();">
+        <i class="fa-solid fa-cloud-arrow-up dropzone-icon"></i>
+        <div class="dropzone-title">ลากไฟล์ Excel มาวางที่นี่</div>
+        <div class="dropzone-desc">หรือคลิกเพื่อเลือกไฟล์แบบฟอร์มโครงการ .xlsx</div>
+        <button type="button" class="btn-select-file">
+          <i class="fa-solid fa-folder-open"></i> เลือกไฟล์ Excel
+        </button>
+        <input type="file" id="fileInput" accept=".xlsx, .xls">
+      </div>
+
+      <!-- Selected File Info -->
+      <div class="file-info-card" id="fileInfoCard">
+        <div class="file-details">
+          <i class="fa-solid fa-file-excel file-icon"></i>
+          <div>
+            <div class="file-name" id="fileNameText">filename.xlsx</div>
+            <div class="file-size" id="fileSizeText">0 KB</div>
+          </div>
+        </div>
+        <button type="button" class="btn-remove-file" onclick="removeSelectedFile(event)" title="ยกเลิกไฟล์นี้">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Action Button -->
+      <div class="action-container">
+        <button type="button" class="btn-verify" id="btnVerify" disabled onclick="processExcelWithPython()">
+          <i class="fa-solid fa-magnifying-glass-chart"></i> เริ่มตรวจสอบแบบฟอร์ม
+        </button>
+      </div>
+
+      <!-- Results Section -->
+      <div class="results-section" id="resultsSection">
+        <div class="status-banner" id="statusBanner">
+          <div id="statusBannerText"><i class="fa-solid fa-circle-info"></i> ผลการตรวจสอบ</div>
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="card-icon-wrapper bg-blue">
+              <i class="fa-solid fa-list-check"></i>
+            </div>
+            <div class="card-info">
+              <div class="label">จำนวนแถวที่ตรวจ</div>
+              <div class="value" id="statTotalRows">0 แถว</div>
+            </div>
+          </div>
+
+          <div class="summary-card">
+            <div class="card-icon-wrapper bg-green">
+              <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <div class="card-info">
+              <div class="label">ผ่านเกณฑ์สมบูรณ์</div>
+              <div class="value" id="statPassedRows">0 แถว</div>
+            </div>
+          </div>
+
+          <div class="summary-card">
+            <div class="card-icon-wrapper bg-red">
+              <i class="fa-solid fa-circle-xmark"></i>
+            </div>
+            <div class="card-info">
+              <div class="label">พบข้อผิดพลาด</div>
+              <div class="value" id="statErrorRows">0 แถว</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="download-bar">
+          <button type="button" class="btn-download" onclick="downloadMarkedExcel()">
+            <i class="fa-solid fa-file-export"></i> ดาวน์โหลดไฟล์ Excel 
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: Single Coord Check (process_check2) -->
+    <div class="coord-card">
+      <div class="card-title">
+        <i class="fa-solid fa-location-crosshairs" style="color: var(--secondary);"></i>
+        ตรวจสอบพิกัดเชิงพื้นที่ <br>(ตาม Shapefile)
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="latInput"><i class="fa-solid fa-map-pin"></i> ละติจูด (Latitude)</label>
+        <input type="number" step="any" class="input-field" id="latInput" placeholder="เช่น 13.78553" value="13.78553">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="lonInput"><i class="fa-solid fa-map-pin"></i> ลองจิจูด (Longitude)</label>
+        <input type="number" step="any" class="input-field" id="lonInput" placeholder="เช่น 100.53915" value="100.53915">
+      </div>
+
+      <button type="button" class="btn-check-coord" id="btnCheckCoord" onclick="checkSingleCoord()">
+        <i class="fa-solid fa-compass"></i> ตรวจสอบตำแหน่งเชิงพื้นที่
+      </button>
+
+      <!-- Coords Result Output Box -->
+      <div class="coord-result-box" id="coordResultBox">
+        <div style="font-weight: 600; color: var(--success); font-size: 0.9rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;">
+          <i class="fa-solid fa-circle-check"></i> ผลการค้นหาเชิงพื้นที่
+        </div>
+        <div class="res-row">
+          <span class="res-label">📌 ตำบล:</span>
+          <span class="res-val" id="resTambon">-</span>
+        </div>
+        <div class="res-row">
+          <span class="res-label">🏢 อำเภอ:</span>
+          <span class="res-val" id="resAmphoe">-</span>
+        </div>
+        <div class="res-row">
+          <span class="res-label">🗺️ จังหวัด:</span>
+          <span class="res-val" id="resProvince">-</span>
+        </div>
+        <div class="res-row">
+          <span class="res-label">🌊 ลุ่มน้ำหลัก:</span>
+          <span class="res-val" id="resMainBasin">-</span>
+        </div>
+        <div class="res-row">
+          <span class="res-label">🌿 ลุ่มน้ำสาขา:</span>
+          <span class="res-val" id="resSubBasin">-</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let currentFile = null;
+  let processedBlob = null;
+  let processedFilename = "checked_file.xlsx";
+
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const fileInfoCard = document.getElementById('fileInfoCard');
+  const fileNameText = document.getElementById('fileNameText');
+  const fileSizeText = document.getElementById('fileSizeText');
+  const btnVerify = document.getElementById('btnVerify');
+  const resultsSection = document.getElementById('resultsSection');
+
+  ['dragenter', 'dragover'].forEach(name => {
+    dropzone.addEventListener(name, (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+  });
+
+  ['dragleave', 'drop'].forEach(name => {
+    dropzone.addEventListener(name, (e) => { e.preventDefault(); dropzone.classList.remove('dragover'); });
+  });
+
+  dropzone.addEventListener('drop', (e) => {
+    const files = e.dataTransfer.files;
+    if (files.length > 0) handleFileSelected(files[0]);
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) handleFileSelected(e.target.files[0]);
+  });
+
+  function handleFileSelected(file) {
+    if (!file.name.match(/\.(xlsx|xls)$/i)) {
+      alert('⚠️ กรุณาเลือกไฟล์ Excel.xlsx เท่านั้นครับ');
+      return;
+    }
+    currentFile = file;
+    fileNameText.textContent = file.name;
+    fileSizeText.textContent = formatBytes(file.size);
+    fileInfoCard.style.display = 'flex';
+    btnVerify.disabled = false;
+    resultsSection.style.display = 'none';
+    processedBlob = null;
+  }
+
+  function removeSelectedFile(e) {
+    if (e) e.stopPropagation();
+    currentFile = null;
+    fileInput.value = '';
+    fileInfoCard.style.display = 'none';
+    btnVerify.disabled = true;
+    resultsSection.style.display = 'none';
+    processedBlob = null;
+  }
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024, sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  // ส่งไฟล์ Excel ไปประมวลผลที่ Python Backend
+  async function processExcelWithPython() {
+    if (!currentFile) return;
+
+    btnVerify.disabled = true;
+    btnVerify.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังประมวลผล...';
+
+    const formData = new FormData();
+    formData.append('file', currentFile);
+
+    try {
+      const response = await fetch('/api/verify', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.detail || 'เกิดข้อผิดพลาดในการประมวลผลบนเซิร์ฟเวอร์');
+      }
+
+      const totalRows = response.headers.get('X-Total-Rows') || '0';
+      const passedRows = response.headers.get('X-Passed-Rows') || '0';
+      const errorRows = response.headers.get('X-Error-Rows') || '0';
+
+      processedBlob = await response.blob();
+      
+      const originalName = currentFile.name.replace(/\.[^/.]+$/, "");
+      processedFilename = `${originalName}_Checked_Python.xlsx`;
+
+      document.getElementById('statTotalRows').textContent = totalRows + " แถว";
+      document.getElementById('statPassedRows').textContent = passedRows + " แถว";
+      document.getElementById('statErrorRows').textContent = errorRows + " แถว";
+
+      const statusBanner = document.getElementById('statusBanner');
+      const statusBannerText = document.getElementById('statusBannerText');
+      if (parseInt(errorRows) === 0) {
+        statusBanner.className = 'status-banner success';
+        statusBannerText.innerHTML = '<i class="fa-solid fa-circle-check"></i> <strong>ยอดเยี่ยม!</strong> ตรวจสอบผ่านครบทุกเกณฑ์ 100%';
+      } else {
+        statusBanner.className = 'status-banner has-errors';
+        statusBannerText.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> <strong>ตรวจสอบเสร็จสิ้น!</strong> พบข้อผิดพลาดทั้งหมด ${errorRows} แถว (เขียนผลลง Col C และไฮไลต์เรียบร้อยแล้ว)`;
+      }
+
+      resultsSection.style.display = 'block';
+
+    } catch (err) {
+      console.error(err);
+      alert('❌ เกิดข้อผิดพลาด: ' + err.message);
+    } finally {
+      btnVerify.disabled = false;
+      btnVerify.innerHTML = '<i class="fa-solid fa-magnifying-glass-chart"></i> เริ่มตรวจสอบแบบฟอร์ม';
+    }
+  }
+
+  function downloadMarkedExcel() {
+    if (!processedBlob) {
+      alert('กรุณาทำการตรวจสอบไฟล์ก่อนดาวน์โหลดครับ');
+      return;
+    }
+    saveAs(processedBlob, processedFilename);
+  }
+
+  // ตรวจสอบพิกัด Lat/Long รายจุด (process_check2)
+  async function checkSingleCoord() {
+    const lat = parseFloat(document.getElementById('latInput').value);
+    const lon = parseFloat(document.getElementById('lonInput').value);
+    const btn = document.getElementById('btnCheckCoord');
+    const resBox = document.getElementById('coordResultBox');
+
+    if (isNaN(lat) || isNaN(lon)) {
+      alert('⚠️ กรุณากรอกพิกัดละติจูดและลองจิจูดให้เป็นตัวเลขที่ถูกต้อง');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังค้นหาพิกัด...';
+
+    try {
+      const response = await fetch('/api/check_coords', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: lat, lon: lon })
+      });
+
+      if (!response.ok) throw new Error('ไม่สามารถค้นหาตำแหน่งได้');
+
+      const json = await response.json();
+      const data = json.data;
+
+      document.getElementById('resTambon').textContent = data.tambon || '-';
+      document.getElementById('resAmphoe').textContent = data.amphoe || '-';
+      document.getElementById('resProvince').textContent = data.province || '-';
+      document.getElementById('resMainBasin').textContent = data.main_basin || '-';
+      document.getElementById('resSubBasin').textContent = data.sub_basin || '-';
+
+      resBox.style.display = 'block';
+
+    } catch (err) {
+      alert('❌ เกิดข้อผิดพลาดในการตรวจสอบพิกัด: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-compass"></i> ตรวจสอบตำแหน่งเชิงพื้นที่';
+    }
+  }
+</script>
+
+</body>
+</html>
