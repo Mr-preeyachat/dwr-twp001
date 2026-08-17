@@ -101,11 +101,14 @@ if os.path.exists(excel_ref_path):
 # -----------------------------------------------------------------------------
 shp_tambon = os.path.join(BASE_DIR, "assets", "AreaDWR_5.gpkg")
 shp_basin = os.path.join(BASE_DIR, "assets", "SB_ONWR_2m.gpkg")
+shp_AB  = os.path.join(BASE_DIR, "assets", "Area Based.gpkg")
 
 gdf_tambon = None
 gdf_basin = None
+gdf_AB = None
 sindex_tambon = None
 sindex_basin = None
+sindex_AB = None
 
 # --- โหลดไฟล์ขอบเขตตำบล ---
 if os.path.exists(shp_tambon):
@@ -141,10 +144,28 @@ if os.path.exists(shp_basin):
 else:
     print(f"⚠️ ไม่พบไฟล์ขอบเขตลุ่มน้ำที่พาธ: {shp_basin}")
 
+# --- โหลดไฟล์ขอบเขตลุ่มน้ำ ---
+if os.path.exists(shp_AB):
+    try:
+        # โหลดไฟล์และแปลงระบบพิกัดเป็น EPSG:4326
+        gdf_AB = gpd.read_file(shp_AB).to_crs(epsg=4326)
+        
+        if not gdf_AB.empty:
+            sindex_AB = gdf_AB.sindex
+            print("✅ โหลดไฟล์ขอบเขตABสำเร็จ!")
+        else:
+            print("⚠️ ไฟล์ขอบเขตABไม่มีข้อมูล (Empty GeoDataFrame)")
+            gdf_AB = None
+    except Exception as e:
+        print(f"⚠️ ไม่สามารถโหลดไฟล์ขอบเขตABได้: {e}")
+else:
+    print(f"⚠️ ไม่พบไฟล์ขอบเขตลุ่มน้ำที่พาธ: {shp_AB}")
+
 def lookup_spatial_point(lat: float, lon: float):
     """ค้นหาข้อมูลตำบล อำเภอ จังหวัด ลุ่มน้ำหลัก และลุ่มน้ำสาขาจากพิกัด Lat/Long"""
     P_NAME = A_NAME = T_NAME = "ไม่พบ"
     BM_NAME = BS_NAME = "ไม่พบ"
+    AB_CODE = AB_NAME = AB_TYPE = "ไม่พบ"
 
     try:
         pt = Point(float(lon), float(lat))
@@ -166,6 +187,15 @@ def lookup_spatial_point(lat: float, lon: float):
                     BS_NAME = str(gdf_basin.iloc[idx, 1]).strip()
                     break
 
+        if gdf_AB is not None and sindex_AB is not None:
+            idx_AB = list(sindex_AB.intersection(pt.bounds))
+            for idx in idx_AB:
+                if gdf_AB.geometry.iloc[idx].contains(pt):
+                    AB_CODE = str(gdf_AB.iloc[idx, 1]).strip()
+                    AB_NAME = str(gdf_AB.iloc[idx, 0]).strip()
+                    AB_TYPE = str(gdf_AB.iloc[idx, 2]).strip()
+                    break
+
     except Exception as e:
         print("Spatial lookup error:", e)
 
@@ -175,6 +205,9 @@ def lookup_spatial_point(lat: float, lon: float):
         "tambon": T_NAME,
         "main_basin": BM_NAME,
         "sub_basin": BS_NAME,
+        "code_AB": AB_CODE,
+        "name_AB": AB_NAME,
+        "type_AB": AB_TYPE
     }
 # -----------------------------------------------------------------------------
 # 3. ฟังก์ชันคำนวณและตรวจสอบข้อความ (Helper Functions)
