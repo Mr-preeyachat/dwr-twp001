@@ -436,9 +436,9 @@
   <div class="header-card">
     <h1 class="header-title">
       <i class="fa-solid fa-square-check"></i>
-      ระบบตรวจสอบแบบฟอร์ม สทนช.001 V2.1
+      ระบบตรวจสอบแบบฟอร์ม สทนช.001 V2.2
     </h1>
-    <p class="header-subtitle">วัตถุประสงค์ : ตรวจสอบไฟล์ Excel แบบฟอร์ม สทนช.001 และค้นหาตำแหน่งเชิงพื้นที่ตาม Shapefile (ความละเอียด 5%))</p>
+    <p class="header-subtitle">วัตถุประสงค์: ตรวจสอบไฟล์ Excel แบบฟอร์ม สทนช.001 และพื้นที่ตาม Shapefile (ความละเอียด 5% รอยต่อพื้นที่มีความผิดพลาดสูง)</p>
     <div class="server-badge">
       <i class="fa-brands fa-python"></i> Wep App สำหรับทดลองการตรวจสอบ  
     </div>
@@ -563,11 +563,11 @@
           <span class="res-val" id="resTambon">-</span>
         </div>
         <div class="res-row">
-          <span class="res-label">🏢 อำเภอ:</span>
+          <span class="res-label">📌 อำเภอ:</span>
           <span class="res-val" id="resAmphoe">-</span>
         </div>
         <div class="res-row">
-          <span class="res-label">🗺️ จังหวัด:</span>
+          <span class="res-label">📌 จังหวัด:</span>
           <span class="res-val" id="resProvince">-</span>
         </div>
         <div class="res-row">
@@ -575,8 +575,20 @@
           <span class="res-val" id="resMainBasin">-</span>
         </div>
         <div class="res-row">
-          <span class="res-label">🌿 ลุ่มน้ำสาขา:</span>
+          <span class="res-label">🌊 ลุ่มน้ำสาขา:</span>
           <span class="res-val" id="resSubBasin">-</span>
+        </div>
+        <div class="res-row">
+          <span class="res-label">🏷️ รหัส AB:</span>
+          <span class="res-val" id="rescode_AB">-</span>
+        </div>
+        <div class="res-row">
+          <span class="res-label">🏷️ Area Based:</span>
+          <span class="res-val" id="resname_AB">-</span>
+        </div>
+        <div class="res-row">
+          <span class="res-label">🏷️ ประเภท AB:</span>
+          <span class="res-val" id="restype_AB">-</span>
         </div>
       </div>
     </div>
@@ -686,7 +698,7 @@
         statusBannerText.innerHTML = '<i class="fa-solid fa-circle-check"></i> <strong>ยอดเยี่ยม!</strong> ตรวจสอบผ่านครบทุกเกณฑ์ 100%';
       } else {
         statusBanner.className = 'status-banner has-errors';
-        statusBannerText.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> <strong>ตรวจสอบเสร็จสิ้น!</strong> พบข้อผิดพลาดทั้งหมด ${errorRows} แถว (เขียนผลลง Col C และไฮไลต์เรียบร้อยแล้ว)`;
+        statusBannerText.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> <strong>ตรวจสอบเสร็จสิ้น!</strong> พบข้อผิดพลาดทั้งหมด ${errorRows} แถว `;
       }
 
       resultsSection.style.display = 'block';
@@ -740,6 +752,10 @@
       document.getElementById('resProvince').textContent = data.province || '-';
       document.getElementById('resMainBasin').textContent = data.main_basin || '-';
       document.getElementById('resSubBasin').textContent = data.sub_basin || '-';
+
+      document.getElementById('rescode_AB').textContent = data.code_AB || '-';
+      document.getElementById('resname_AB').textContent = data.name_AB || '-';
+      document.getElementById('restype_AB').textContent = data.type_AB || '-';
 
       resBox.style.display = 'block';
 
