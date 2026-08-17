@@ -99,7 +99,86 @@ if os.path.exists(excel_ref_path):
 # -----------------------------------------------------------------------------
 # 2. โหลดไฟล์แผนที่เชิงพื้นที่ (GeoPandas - GeoPackage)
 # -----------------------------------------------------------------------------
+shp_tambon = os.path.join(BASE_DIR, "assets", "AreaDWR_5.gpkg")
+shp_basin = os.path.join(BASE_DIR, "assets", "SB_ONWR_2m.gpkg")
+shp_AB  = os.path.join(BASE_DIR, "assets", "Area Based.gpkg")
 
+gdf_tambon = None
+gdf_basin = None
+gdf_AB = None
+sindex_tambon = None
+sindex_basin = None
+sindex_AB = None
+
+# --- โหลดไฟล์ขอบเขตตำบล ---
+if os.path.exists(shp_tambon):
+    try:
+        # โหลดไฟล์และแปลงระบบพิกัดเป็น EPSG:4326
+        gdf_tambon = gpd.read_file(shp_tambon).to_crs(epsg=4326)
+        
+        if not gdf_tambon.empty:
+            sindex_tambon = gdf_tambon.sindex
+            print("✅ โหลดไฟล์ขอบเขตตำบลสำเร็จ!")
+        else:
+            print("⚠️ ไฟล์ขอบเขตตำบลไม่มีข้อมูล (Empty GeoDataFrame)")
+            gdf_tambon = None
+    except Exception as e:
+        print(f"⚠️ ไม่สามารถโหลดไฟล์ขอบเขตตำบลได้: {e}")
+else:
+    print(f"⚠️ ไม่พบไฟล์ขอบเขตตำบลที่พาธ: {shp_tambon}")
+
+# --- โหลดไฟล์ขอบเขตลุ่มน้ำ ---
+if os.path.exists(shp_basin):
+    try:
+        # โหลดไฟล์และแปลงระบบพิกัดเป็น EPSG:4326
+        gdf_basin = gpd.read_file(shp_basin).to_crs(epsg=4326)
+        
+        if not gdf_basin.empty:
+            sindex_basin = gdf_basin.sindex
+            print("✅ โหลดไฟล์ขอบเขตลุ่มน้ำสำเร็จ!")
+        else:
+            print("⚠️ ไฟล์ขอบเขตลุ่มน้ำไม่มีข้อมูล (Empty GeoDataFrame)")
+            gdf_basin = None
+    except Exception as e:
+        print(f"⚠️ ไม่สามารถโหลดไฟล์ขอบเขตลุ่มน้ำได้: {e}")
+else:
+    print(f"⚠️ ไม่พบไฟล์ขอบเขตลุ่มน้ำที่พาธ: {shp_basin}")
+
+def lookup_spatial_point(lat: float, lon: float):
+    """ค้นหาข้อมูลตำบล อำเภอ จังหวัด ลุ่มน้ำหลัก และลุ่มน้ำสาขาจากพิกัด Lat/Long"""
+    P_NAME = A_NAME = T_NAME = "ไม่พบ"
+    BM_NAME = BS_NAME = "ไม่พบ"
+
+    try:
+        pt = Point(float(lon), float(lat))
+
+        if gdf_tambon is not None and sindex_tambon is not None:
+            idx_possible = list(sindex_tambon.intersection(pt.bounds))
+            for idx in idx_possible:
+                if gdf_tambon.geometry.iloc[idx].contains(pt):
+                    P_NAME = str(gdf_tambon.iloc[idx, 4]).strip()
+                    A_NAME = str(gdf_tambon.iloc[idx, 3]).strip()
+                    T_NAME = str(gdf_tambon.iloc[idx, 2]).strip()
+                    break
+
+        if gdf_basin is not None and sindex_basin is not None:
+            idx_basin = list(sindex_basin.intersection(pt.bounds))
+            for idx in idx_basin:
+                if gdf_basin.geometry.iloc[idx].contains(pt):
+                    BM_NAME = str(gdf_basin.iloc[idx, 2]).strip()
+                    BS_NAME = str(gdf_basin.iloc[idx, 1]).strip()
+                    break
+
+    except Exception as e:
+        print("Spatial lookup error:", e)
+
+    return {
+        "province": P_NAME,
+        "amphoe": A_NAME,
+        "tambon": T_NAME,
+        "main_basin": BM_NAME,
+        "sub_basin": BS_NAME,
+    }
 # -----------------------------------------------------------------------------
 # 3. ฟังก์ชันคำนวณและตรวจสอบข้อความ (Helper Functions)
 # -----------------------------------------------------------------------------
@@ -371,7 +450,57 @@ def process_check_C_logic(wb):
         check_err_latlong = "ผ่าน"
         check_err_latlong_A = ""
         check_err_latlong_B = ""
-        
+        if str(cell_P.value).strip() == "ส่วนกลาง":
+            if str(cell_LAT.value).strip() != "13.78553" or str(cell_LONG.value).strip() != "100.53915":
+                cell_LAT.fill = red_fill; cell_LONG.fill = red_fill
+                check_err_latlong_A = "พิกัดส่วนกลาง"
+            if str(cell_A.value).strip() != "ส่วนกลาง":
+                cell_A.fill = red_fill
+                check_err_latlong_A = "ที่ตั้งต้องเป็นส่วนกลาง"
+            if str(cell_T.value).strip() != "ส่วนกลาง":
+                cell_T.fill = red_fill
+                check_err_latlong_A = "ที่ตั้งต้องเป็นส่วนกลาง"
+        else:
+            lat_val = float(cell_LAT.value) if cell_LAT.value is not None and str(cell_LAT.value).strip() != "" else None
+            lon_val = float(cell_LONG.value) if cell_LONG.value is not None and str(cell_LONG.value).strip() != "" else None
+
+            if lat_val is None or lon_val is None:
+                cell_LAT.fill = red_fill; cell_LONG.fill = red_fill
+                check_err_latlong_B = "ไม่มีพิกัด"
+            else:
+                # 2.1 Spatial Intersection Check
+                spatial_info = lookup_spatial_point(lat_val, lon_val)
+                P_NAME = spatial_info["province"]
+                A_NAME = spatial_info["amphoe"]
+                T_NAME = spatial_info["tambon"]
+                BM_NAME = spatial_info["main_basin"]
+                BS_NAME = spatial_info["sub_basin"]
+
+                latlong_error = 0
+                if str(cell_P.value).strip() == P_NAME: cell_P.font = green_font
+                else: cell_P.font = red_font; latlong_error += 1
+
+                if str(cell_A.value).strip() == A_NAME: cell_A.font = green_font
+                else: cell_A.font = red_font; latlong_error += 1
+
+                if str(cell_T.value).strip() == T_NAME: cell_T.font = green_font
+                else: cell_T.font = red_font; latlong_error += 1
+
+                if str(cell_BM.value).strip() == BM_NAME: cell_BM.font = green_font
+                else: cell_BM.font = red_font; latlong_error += 10
+
+                if str(cell_BS.value).strip() == BS_NAME: cell_BS.font = green_font
+                else: cell_BS.font = red_font; latlong_error += 10
+
+                if latlong_error >= 1:
+                    cell_LAT.fill = yellow_fill; cell_LONG.fill = yellow_fill
+                    check_err_latlong_B = "พิกัดอาจไม่ตรงกับพื้นที่"
+                else:
+                    cell_LAT.fill = green_fill; cell_LONG.fill = green_fill
+
+        if check_err_latlong_A or check_err_latlong_B:
+            check_err_latlong = f"พิกัดผิดพลาด: {check_err_latlong_A} {check_err_latlong_B}".strip()
+
         # 3. ตรวจสอบลำดับชั้นที่ตั้ง (location_ref)
         check_err_loref_num1 = 0
         check_err_loref_num2 = 0
@@ -556,7 +685,6 @@ def process_check_C_logic(wb):
             check_err_Attach,
             check_err_day,
         ]
-
         check_err_errors = [err for err in check_list if err and err != "ผ่าน"]
 
         if check_err_errors:
@@ -573,8 +701,6 @@ def process_check_C_logic(wb):
             cell_NW.fill = PatternFill(fill_type=None)
 
     return total_rows, passed_rows, error_rows
-
-# -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 # 5. API Endpoints
 # -----------------------------------------------------------------------------
