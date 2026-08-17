@@ -101,14 +101,11 @@ if os.path.exists(excel_ref_path):
 # -----------------------------------------------------------------------------
 shp_tambon = os.path.join(BASE_DIR, "assets", "AreaDWR_5.gpkg")
 shp_basin = os.path.join(BASE_DIR, "assets", "SB_ONWR_2m.gpkg")
-shp_AB  = os.path.join(BASE_DIR, "assets", "Area Based.gpkg")
 
 gdf_tambon = None
 gdf_basin = None
-gdf_AB = None
 sindex_tambon = None
 sindex_basin = None
-sindex_AB = None
 
 # --- โหลดไฟล์ขอบเขตตำบล ---
 if os.path.exists(shp_tambon):
@@ -233,20 +230,20 @@ def check_project_name_error(text):
     
     for kw in keywords:
         if kw in txt:
-            continue
-        max_allowed = 1 if len(kw) <= 5 else (2 if len(kw) <= 10 else 3)
-        min_dist = 9999
-        len_txt = len(txt)
-        len_kw = len(kw)
+            continue  # ถ้ามีคำถูกเป๊ะๆ ในข้อความแล้ว ให้ข้าม
         
-        if len_txt >= len_kw - max_allowed:
-            for i in range(0, len_txt - len_kw + 1 + max_allowed):
-                chunk = txt[i : i + len_kw]
-                if not chunk: continue
+        len_kw = len(kw)
+        max_allowed = 1 if len_kw <= 5 else (2 if len_kw <= 10 else 3)
+        min_dist = 9999
+        
+        # วนลูปตัด chunk ที่มีความยาวต่างกัน (เผื่อพิมพ์ขาดหรือพิมพ์เกิน)
+        for window_size in range(max(1, len_kw - max_allowed), len_kw + max_allowed + 1):
+            for i in range(0, len(txt) - window_size + 1):
+                chunk = txt[i : i + window_size]
                 dist = levenshtein_distance(chunk, kw)
                 if dist < min_dist:
                     min_dist = dist
-                    
+    
         if 0 < min_dist <= max_allowed:
             typo_list.append(kw)
             
