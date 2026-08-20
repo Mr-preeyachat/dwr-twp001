@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>แผนที่ค้นหาข้อมูลพื้นที่</title>
+    <title>แผนที่ค้นหาข้อมูลพื้นที่ (by-ปรียฉัตร ร่องแก้ว)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <style>
         * { box-sizing: border-box; }
@@ -11,7 +11,7 @@
         body { background: #f5f7fa; }
         .container { display: flex; height: 100vh; }
         .panel {
-            width: 370px; padding: 18px; background: #fff;
+            width: 380px; padding: 18px; background: #fff;
             box-shadow: 2px 0 12px rgba(0,0,0,.15); z-index: 1000;
             overflow-y: auto;
         }
@@ -45,6 +45,15 @@
         }
         .found { color: #14833b; }
         .notfound { color: #a25a00; }
+        
+        /* สไตล์สำหรับกล่องข้อมูลสำรอง */
+        .osm-box {
+            margin-top: 15px; padding: 10px; background: #fff9e6;
+            border: 1px solid #ffe58f; border-radius: 6px; font-size: 13px;
+        }
+        .osm-title { font-weight: bold; color: #b7791f; margin-bottom: 6px; }
+        .osm-address { white-space: pre-wrap; word-break: break-word; color: #4a5568; }
+
         #map { flex: 1; min-width: 0; }
         .leaflet-popup-content { line-height: 1.6; }
 
@@ -72,6 +81,12 @@
         <div class="result" id="result">
             คลิกบนแผนที่ หรือกรอก Lat/Long แล้วกดค้นหา
         </div>
+        
+        <!-- กล่องแสดงข้อมูลสำรอง OpenStreetMap -->
+        <div class="osm-box" id="osm-box" style="display: none;">
+            <div class="osm-title">ℹ️ ข้อมูลที่อยู่สำรอง (OpenStreetMap):</div>
+            <div class="osm-address" id="osm-address">กำลังโหลด...</div>
+        </div>
     </div>
 
     <div id="map"></div>
@@ -79,8 +94,8 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // HTML คุยกับ Python ตัวเดียว ไม่ใช้ Nominatim / Reverse Geocoding ภายนอก
     const API_URL = "/api/check_coords";
+    const NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse";
 
     const map = L.map("map").setView([13.7563, 100.5018], 10);
     let marker = null;
@@ -134,11 +149,17 @@
             </div>`;
     }
 
-    function renderResult(data) {
+    function renderResult(data, reqLat, reqLon) {
+        const safeLat = parseFloat(data.lat ?? reqLat);
+        const safeLon = parseFloat(data.lon ?? reqLon);
+
+        const displayLat = !isNaN(safeLat) ? safeLat.toFixed(6) : "ไม่พบ";
+        const displayLon = !isNaN(safeLon) ? safeLon.toFixed(6) : "ไม่พบ";
+
         document.getElementById("result").innerHTML = `
             <div class="coord">
-                <div><b>Latitude:</b> ${escapeHtml(Number(data.lat).toFixed(6))}</div>
-                <div><b>Longitude:</b> ${escapeHtml(Number(data.lon).toFixed(6))}</div>
+                <div><b>Latitude:</b> ${escapeHtml(displayLat)}</div>
+                <div><b>Longitude:</b> ${escapeHtml(displayLon)}</div>
             </div>
             ${row("จังหวัด", data.province, data.found?.tambon)}
             ${row("อำเภอ", data.amphoe, data.found?.tambon)}
@@ -156,18 +177,24 @@
         const lon = parseFloat(document.getElementById("lon").value);
         const status = document.getElementById("status");
         const result = document.getElementById("result");
+        const osmBox = document.getElementById("osm-box");
+        const osmAddress = document.getElementById("osm-address");
 
         if (!Number.isFinite(lat) || !Number.isFinite(lon) ||
             lat < -90 || lat > 90 || lon < -180 || lon > 180) {
             status.textContent = "❌ พิกัดไม่ถูกต้อง";
             result.textContent = "กรุณาตรวจสอบ Latitude / Longitude";
+            osmBox.style.display = "none";
             return;
         }
 
         setMarker(lat, lon, "⏳ กำลังค้นหาพื้นที่...");
-        status.textContent = "⏳ Python กำลังค้นหาจากไฟล์พื้นที่...";
+        status.textContent = "⏳ กำลังค้นหาข้อมูล...";
         result.textContent = "กำลังประมวลผล Spatial Query...";
+        osmBox.style.display = "block";
+        osmAddress.textContent = "กำลังดึงข้อมูลสำรอง...";
 
+        // 1. ดึงข้อมูลหลักจาก Python API
         try {
             const res = await fetch(API_URL, {
                 method: "POST",
@@ -181,13 +208,16 @@
             }
 
             const data = body.data;
-            renderResult(data);
-            status.textContent = "✅ พบ/ประมวลผลข้อมูลพื้นที่จาก Python แล้ว";
+            renderResult(data, lat, lon);
+            status.textContent = "✅ ประมวลผลข้อมูลสำเร็จ";
+
+            const safeLat = parseFloat(data.lat ?? lat).toFixed(6);
+            const safeLon = parseFloat(data.lon ?? lon).toFixed(6);
 
             const popup = `
                 <b>📍 ตำแหน่งที่เลือก</b><br>
-                Lat: ${escapeHtml(Number(data.lat).toFixed(6))}<br>
-                Lon: ${escapeHtml(Number(data.lon).toFixed(6))}<br><br>
+                Lat: ${escapeHtml(safeLat)}<br>
+                Lon: ${escapeHtml(safeLon)}<br><br>
                 <b>จังหวัด:</b> ${escapeHtml(data.province)}<br>
                 <b>อำเภอ:</b> ${escapeHtml(data.amphoe)}<br>
                 <b>ตำบล:</b> ${escapeHtml(data.tambon)}
@@ -195,9 +225,22 @@
             marker.bindPopup(popup).openPopup();
         } catch (err) {
             console.error(err);
-            status.textContent = "❌ ค้นหาข้อมูลไม่สำเร็จ";
+            status.textContent = "❌ ค้นหาข้อมูล GIS หลักไม่สำเร็จ";
             result.textContent = err.message || "ไม่สามารถเชื่อมต่อ Python API ได้";
-            if (marker) marker.bindPopup("❌ ไม่สามารถค้นหาข้อมูลพื้นที่ได้").openPopup();
+        }
+
+        // 2. ดึงข้อมูลสำรองจาก OpenStreetMap Nominatim (ทำงานแยกไม่ขัดขวางระบบหลัก)
+        try {
+            const osmRes = await fetch(`${NOMINATIM_URL}?lat=${lat}&lon=${lon}&format=json`);
+            if (osmRes.ok) {
+                const osmData = await osmRes.json();
+                osmAddress.textContent = osmData.display_name || "ไม่พบที่อยู่จาก OpenStreetMap";
+            } else {
+                osmAddress.textContent = "ไม่สามารถดึงข้อมูลที่อยู่สำรองได้";
+            }
+        } catch (osmErr) {
+            console.error("OSM Error:", osmErr);
+            osmAddress.textContent = "เกิดข้อผิดพลาดในการดึงข้อมูลสำรอง";
         }
     }
 
