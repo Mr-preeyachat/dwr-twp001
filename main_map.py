@@ -191,7 +191,6 @@ for key, col in COL.items():
 # Spatial lookup
 # =============================================================================
 def lookup_spatial_point(lat: float, lon: float) -> dict:
-    # ตรวจสอบพิกัดก่อนสร้าง Point
     if not (-90 <= lat <= 90):
         raise ValueError("Latitude ต้องอยู่ระหว่าง -90 ถึง 90")
     if not (-180 <= lon <= 180):
@@ -204,8 +203,9 @@ def lookup_spatial_point(lat: float, lon: float) -> dict:
     area_row = point_in_layer(point, gdf_area, sindex_area)
 
     data = {
-        "lat": lat,
-        "lon": lon,
+        # บังคับคาสต์ float ให้ชัวร์ก่อนส่งกลับ
+        "lat": float(lat),
+        "lon": float(lon),
         "province": value_from_row(tambon_row, COL["province"]) if tambon_row is not None else "ไม่พบ",
         "amphoe": value_from_row(tambon_row, COL["amphoe"]) if tambon_row is not None else "ไม่พบ",
         "tambon": value_from_row(tambon_row, COL["tambon"]) if tambon_row is not None else "ไม่พบ",
@@ -216,7 +216,6 @@ def lookup_spatial_point(lat: float, lon: float) -> dict:
         "type_AB": value_from_row(area_row, COL["type_AB"]) if area_row is not None else "ไม่พบ",
     }
 
-    # ใช้สำหรับให้หน้าเว็บรู้ว่า layer ไหนพบข้อมูลจริง
     data["found"] = {
         "tambon": tambon_row is not None,
         "basin": basin_row is not None,
