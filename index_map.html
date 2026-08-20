@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>แผนที่ค้นหาข้อมูลพื้นที่</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <style>
+        * { box-sizing: border-box; }
+        html, body { margin: 0; height: 100%; font-family: Arial, sans-serif; }
+        body { background: #f5f7fa; }
+        .container { display: flex; height: 100vh; }
+        .panel {
+            width: 370px; padding: 18px; background: #fff;
+            box-shadow: 2px 0 12px rgba(0,0,0,.15); z-index: 1000;
+            overflow-y: auto;
+        }
+        h2 { margin: 0 0 16px; color: #1769aa; }
+        label { display:block; margin: 9px 0 4px; font-weight: 700; }
+        input {
+            width: 100%; padding: 9px 10px; border: 1px solid #cfd6dd;
+            border-radius: 6px; font-size: 14px;
+        }
+        button {
+            width: 100%; padding: 10px; margin-top: 14px; border: 0;
+            border-radius: 6px; background: #1976d2; color: #fff;
+            font-weight: 700; cursor: pointer;
+        }
+        button:hover { background: #125ca1; }
+        .status { margin-top: 12px; font-weight: 700; font-size: 14px; }
+        .result {
+            margin-top: 12px; padding: 12px; background: #f7fbff;
+            border: 1px solid #d4e7f7; border-radius: 8px; font-size: 14px;
+        }
+        .row {
+            display: flex; justify-content: space-between; gap: 12px;
+            padding: 7px 0; border-bottom: 1px solid #e7edf3;
+        }
+        .row:last-child { border-bottom: 0; }
+        .label { color: #5c6773; }
+        .value { font-weight: 700; text-align: right; word-break: break-word; }
+        .coord {
+            margin-bottom: 10px; padding: 10px; border-radius: 7px;
+            background: #eef6ff; border: 1px solid #cfe5ff;
+        }
+        .found { color: #14833b; }
+        .notfound { color: #a25a00; }
+        #map { flex: 1; min-width: 0; }
+        .leaflet-popup-content { line-height: 1.6; }
+
+        @media (max-width: 800px) {
+            .container { flex-direction: column; }
+            .panel { width: 100%; height: 45vh; }
+            #map { height: 55vh; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="panel">
+        <h2>📍 ค้นหาข้อมูลพื้นที่</h2>
+
+        <label for="lat">Latitude</label>
+        <input type="number" id="lat" step="any" placeholder="13.756300">
+
+        <label for="lon">Longitude</label>
+        <input type="number" id="lon" step="any" placeholder="100.501800">
+
+        <button type="button" onclick="searchCoordinate()">🔍 ค้นหาพื้นที่</button>
+
+        <div class="status" id="status"></div>
+        <div class="result" id="result">
+            คลิกบนแผนที่ หรือกรอก Lat/Long แล้วกดค้นหา
+        </div>
+    </div>
+
+    <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // HTML คุยกับ Python ตัวเดียว ไม่ใช้ Nominatim / Reverse Geocoding ภายนอก
+    const API_URL = "/api/check_coords";
+
+    const map = L.map("map").setView([13.7563, 100.5018], 10);
+    let marker = null;
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    map.on("click", (e) => {
+        updateInputs(e.latlng.lat, e.latlng.lng);
+        searchCoordinate();
+    });
+
+    function updateInputs(lat, lon) {
+        document.getElementById("lat").value = Number(lat).toFixed(6);
+        document.getElementById("lon").value = Number(lon).toFixed(6);
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function setMarker(lat, lon, popupHtml = "ตำแหน่งที่เลือก") {
+        if (!marker) {
+            marker = L.marker([lat, lon], { draggable: true }).addTo(map);
+            marker.on("dragend", (e) => {
+                const pos = e.target.getLatLng();
+                updateInputs(pos.lat, pos.lng);
+                searchCoordinate();
+            });
+        } else {
+            marker.setLatLng([lat, lon]);
+        }
+
+        marker.bindPopup(popupHtml).openPopup();
+        map.setView([lat, lon], Math.max(map.getZoom(), 13));
+    }
+
+    function row(label, value, found = true) {
+        const cls = found ? "found" : "notfound";
+        return `
+            <div class="row">
+                <div class="label">${escapeHtml(label)}</div>
+                <div class="value ${cls}">${escapeHtml(value || "ไม่พบ")}</div>
+            </div>`;
+    }
+
+    function renderResult(data) {
+        document.getElementById("result").innerHTML = `
+            <div class="coord">
+                <div><b>Latitude:</b> ${escapeHtml(Number(data.lat).toFixed(6))}</div>
+                <div><b>Longitude:</b> ${escapeHtml(Number(data.lon).toFixed(6))}</div>
+            </div>
+            ${row("จังหวัด", data.province, data.found?.tambon)}
+            ${row("อำเภอ", data.amphoe, data.found?.tambon)}
+            ${row("ตำบล", data.tambon, data.found?.tambon)}
+            ${row("ลุ่มน้ำหลัก", data.main_basin, data.found?.basin)}
+            ${row("ลุ่มน้ำสาขา", data.sub_basin, data.found?.basin)}
+            ${row("รหัส Area Based", data.code_AB, data.found?.area_based)}
+            ${row("Area Based", data.name_AB, data.found?.area_based)}
+            ${row("ประเภท Area Based", data.type_AB, data.found?.area_based)}
+        `;
+    }
+
+    async function searchCoordinate() {
+        const lat = parseFloat(document.getElementById("lat").value);
+        const lon = parseFloat(document.getElementById("lon").value);
+        const status = document.getElementById("status");
+        const result = document.getElementById("result");
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lon) ||
+            lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+            status.textContent = "❌ พิกัดไม่ถูกต้อง";
+            result.textContent = "กรุณาตรวจสอบ Latitude / Longitude";
+            return;
+        }
+
+        setMarker(lat, lon, "⏳ กำลังค้นหาพื้นที่...");
+        status.textContent = "⏳ Python กำลังค้นหาจากไฟล์พื้นที่...";
+        result.textContent = "กำลังประมวลผล Spatial Query...";
+
+        try {
+            const res = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ lat, lon })
+            });
+
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok || !body.success) {
+                throw new Error(body.detail || `HTTP Error: ${res.status}`);
+            }
+
+            const data = body.data;
+            renderResult(data);
+            status.textContent = "✅ พบ/ประมวลผลข้อมูลพื้นที่จาก Python แล้ว";
+
+            const popup = `
+                <b>📍 ตำแหน่งที่เลือก</b><br>
+                Lat: ${escapeHtml(Number(data.lat).toFixed(6))}<br>
+                Lon: ${escapeHtml(Number(data.lon).toFixed(6))}<br><br>
+                <b>จังหวัด:</b> ${escapeHtml(data.province)}<br>
+                <b>อำเภอ:</b> ${escapeHtml(data.amphoe)}<br>
+                <b>ตำบล:</b> ${escapeHtml(data.tambon)}
+            `;
+            marker.bindPopup(popup).openPopup();
+        } catch (err) {
+            console.error(err);
+            status.textContent = "❌ ค้นหาข้อมูลไม่สำเร็จ";
+            result.textContent = err.message || "ไม่สามารถเชื่อมต่อ Python API ได้";
+            if (marker) marker.bindPopup("❌ ไม่สามารถค้นหาข้อมูลพื้นที่ได้").openPopup();
+        }
+    }
+
+    ["lat", "lon"].forEach(id => {
+        document.getElementById(id).addEventListener("keydown", (e) => {
+            if (e.key === "Enter") searchCoordinate();
+        });
+    });
+</script>
+</body>
+</html>
