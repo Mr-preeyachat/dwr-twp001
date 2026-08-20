@@ -414,6 +414,26 @@
       border-bottom: 1px dashed var(--gray-200);
       font-size: 0.88rem;
     }
+    /* ปุ่ม map */
+    .btn-map {
+      display: block;               /* เปลี่ยนเป็น block เพื่อให้ดันองค์ประกอบล่างลงมาได้ชัวร์ */
+      width: 100%;                  /* ขยายเต็มความกว้างการ์ด (หรือตัดออกถ้าอยากให้ขนาดเท่าเดิม) */
+      margin-top: 12px;             /* ระยะห่างจากหัวข้อด้านบน */
+      margin-bottom: 20px;          /* ระยะห่างจาก "ละติจูด (Latitude)" ด้านล่าง */
+      padding: 10px 16px;
+      background-color: #2563eb;
+      color: #ffffff;
+      text-align: center;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      box-sizing: border-box;
+      transition: background-color 0.2s ease;
+    }
+
+    .btn-map:hover {
+      background-color: #1d4ed8;
+    } 
 
     .res-row:last-child { border-bottom: none; }
     .res-label { color: var(--gray-600); font-weight: 400; }
@@ -438,7 +458,7 @@
       <i class="fa-solid fa-square-check"></i>
       ระบบตรวจสอบแบบฟอร์ม สทนช.001 V2.2
     </h1>
-    <p class="header-subtitle">วัตถุประสงค์: ตรวจสอบไฟล์ Excel แบบฟอร์ม สทนช.001 และพื้นที่ตาม Shapefile (ความละเอียด 5% รอยต่อพื้นที่มีความผิดพลาดสูง)</p>
+    <p class="header-subtitle">วัตถุประสงค์ : ตรวจสอบไฟล์ Excel แบบฟอร์ม สทนช.001 และพื้นที่ตาม Shapefile (ความละเอียด 5% รอยต่อพื้นที่มีความผิดพลาดสูง)</p>
     <div class="server-badge">
       <i class="fa-brands fa-python"></i> Wep App สำหรับทดลองการตรวจสอบ  
     </div>
@@ -451,7 +471,7 @@
     <div class="main-card">
       <div class="card-title">
         <i class="fa-solid fa-file-excel" style="color: #16a34a;"></i>
-        ตรวจสอบไฟล์แบบฟอร์ม สทนช.001 กรมทรัพยากรน้ำ
+        ตรวจสอบไฟล์แบบฟอร์ม TWP001 กรมทรัพยากรน้ำ
       </div>
 
       <!-- Drag & Drop Zone -->
@@ -536,8 +556,12 @@
     <div class="coord-card">
       <div class="card-title">
         <i class="fa-solid fa-location-crosshairs" style="color: var(--secondary);"></i>
-        ตรวจสอบพิกัดเชิงพื้นที่ <br>(ตาม Shapefile)
+        ตรวจสอบพิกัดเชิงพื้นที่ 
       </div>
+      <!-- วางไว้ในตำแหน่งที่ต้องการใน Index.html -->
+      <a href="/map" target="_blank" rel="noopener noreferrer" class="btn-map">
+        🗺️ ไปที่ระบบแผนที่ (Map System)
+      </a>
 
       <div class="form-group">
         <label class="form-label" for="latInput"><i class="fa-solid fa-map-pin"></i> ละติจูด (Latitude)</label>
@@ -590,6 +614,7 @@
           <span class="res-label">🏷️ ประเภท AB:</span>
           <span class="res-val" id="restype_AB">-</span>
         </div>
+
       </div>
     </div>
 
@@ -698,7 +723,7 @@
         statusBannerText.innerHTML = '<i class="fa-solid fa-circle-check"></i> <strong>ยอดเยี่ยม!</strong> ตรวจสอบผ่านครบทุกเกณฑ์ 100%';
       } else {
         statusBanner.className = 'status-banner has-errors';
-        statusBannerText.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> <strong>ตรวจสอบเสร็จสิ้น!</strong> พบข้อผิดพลาดทั้งหมด ${errorRows} แถว `;
+        statusBannerText.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> <strong>ตรวจสอบเสร็จสิ้น!</strong> พบข้อผิดพลาดทั้งหมด ${errorRows} แถว (เขียนผลลง Col C และไฮไลต์เรียบร้อยแล้ว)`;
       }
 
       resultsSection.style.display = 'block';
@@ -757,7 +782,9 @@
       document.getElementById('resname_AB').textContent = data.name_AB || '-';
       document.getElementById('restype_AB').textContent = data.type_AB || '-';
 
+
       resBox.style.display = 'block';
+
 
     } catch (err) {
       alert('❌ เกิดข้อผิดพลาดในการตรวจสอบพิกัด: ' + err.message);
