@@ -209,6 +209,7 @@ def lookup_spatial_point(lat: float, lon: float):
         "name_AB": AB_NAME,
         "type_AB": AB_TYPE
     }
+
 # -----------------------------------------------------------------------------
 # 3. ฟังก์ชันคำนวณและตรวจสอบข้อความ (Helper Functions)
 # -----------------------------------------------------------------------------
@@ -260,7 +261,7 @@ def check_project_name_error(text):
     keywords = ["ก่อสร้าง", "ปรับปรุงเพิ่มประสิทธิภาพ", "อนุรักษ์ฟื้นฟู", "ซ่อมแซม", 
                 "ระบบกระจายน้ำ", "พลังงานแสงอาทิตย์", "สนับสนุน", "อุปโภค", "บริโภค"]
     typo_list = []
-    
+
     for kw in keywords:
         if kw in txt:
             continue  # ถ้ามีคำถูกเป๊ะๆ ในข้อความแล้ว ให้ข้าม
@@ -276,7 +277,7 @@ def check_project_name_error(text):
                 dist = levenshtein_distance(chunk, kw)
                 if dist < min_dist:
                     min_dist = dist
-    
+
         if 0 < min_dist <= max_allowed:
             typo_list.append(kw)
             
@@ -715,6 +716,7 @@ def process_check_C_logic(wb):
             check_err_Attach,
             check_err_day,
         ]
+
         check_err_errors = [err for err in check_list if err and err != "ผ่าน"]
 
         if check_err_errors:
@@ -731,6 +733,7 @@ def process_check_C_logic(wb):
             cell_NW.fill = PatternFill(fill_type=None)
 
     return total_rows, passed_rows, error_rows
+
 # -----------------------------------------------------------------------------
 # 5. API Endpoints
 # -----------------------------------------------------------------------------
@@ -740,12 +743,20 @@ class CoordRequest(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
-    index_path = os.path.join(BASE_DIR, "Index.html")
+    index_path = os.path.join(BASE_DIR, "Index_py.html")
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
             return f.read()
-    return "<h1>Index.html not found</h1>"
-
+    return "<h1>Index_py.html not found</h1>"
+#----
+@app.get("/map", response_class=HTMLResponse)
+async def serve_map():
+    map_path = os.path.join(BASE_DIR, "index_map.html")
+    if os.path.exists(map_path):
+        with open(map_path, "r", encoding="utf-8") as f:
+            return f.read()
+    return "<h1>index_map.html not found</h1>"
+#----
 @app.post("/api/check_coords")
 async def check_coordinates_api(req: CoordRequest):
     result = lookup_spatial_point(req.lat, req.lon)
@@ -786,7 +797,8 @@ async def verify_excel(file: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาดในการประมวลผลไฟล์: {str(e)}")
-
+    
+#----------------
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
