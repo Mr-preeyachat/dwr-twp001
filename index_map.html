@@ -7,9 +7,9 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <style>
         * { box-sizing: border-box; }
-        html, body { margin: 0; height: 100%; font-family: Arial, sans-serif; }
+        html, body { margin: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: #f5f7fa; }
-        .container { display: flex; height: 100vh; }
+        .container { display: flex; height: 100vh; position: relative; }
         .panel {
             width: 380px; padding: 18px; background: #fff;
             box-shadow: 2px 0 12px rgba(0,0,0,.15); z-index: 1000;
@@ -54,8 +54,113 @@
         .osm-title { font-weight: bold; color: #b7791f; margin-bottom: 6px; }
         .osm-address { white-space: pre-wrap; word-break: break-word; color: #4a5568; }
 
-        #map { flex: 1; min-width: 0; }
+        #map { flex: 1; min-width: 0; position: relative; z-index: 1; }
         .leaflet-popup-content { line-height: 1.6; }
+
+        /* Custom Dropdown สำหรับเปลี่ยนสไตล์แผนที่ (ลอยมุมขวาบน) */
+        .style-selector-container {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 1000;
+        }
+
+        .custom-select-wrapper {
+            position: relative;
+            user-select: none;
+            min-width: 200px;
+        }
+
+        .custom-select-trigger {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e50;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(8px);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .custom-select-trigger:hover {
+            background: #ffffff;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .custom-select-trigger .arrow {
+            width: 8px;
+            height: 8px;
+            border-right: 2px solid #555;
+            border-bottom: 2px solid #555;
+            transform: rotate(45deg);
+            transition: transform 0.25s ease;
+            margin-left: 12px;
+        }
+
+        .custom-select-wrapper.open .custom-select-trigger .arrow {
+            transform: rotate(-135deg);
+        }
+
+        .custom-options {
+            position: absolute;
+            display: block;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transform: translateY(-10px);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+
+        .custom-select-wrapper.open .custom-options {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: all;
+            transform: translateY(0);
+        }
+
+        .custom-option {
+            position: relative;
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            font-size: 13.5px;
+            color: #333;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .custom-option:hover {
+            background: #f0f4f9;
+            color: #1976d2;
+        }
+
+        .custom-option.selected {
+            background: #e3f2fd;
+            color: #1976d2;
+            font-weight: 600;
+        }
+
+        .option-icon {
+            margin-right: 8px;
+            font-size: 15px;
+        }
 
         @media (max-width: 800px) {
             .container { flex-direction: column; }
@@ -89,7 +194,25 @@
         </div>
     </div>
 
-    <div id="map"></div>
+    <div id="map">
+        <!-- Custom Dropdown เมนูเลือกประเภทแผนที่ -->
+        <div class="style-selector-container">
+            <div class="custom-select-wrapper" id="styleDropdown">
+                <div class="custom-select-trigger">
+                    <span id="selectedOptionText"><span class="option-icon">🗺️</span> OpenStreetMap</span>
+                    <div class="arrow"></div>
+                </div>
+                <div class="custom-options">
+                    <div class="custom-option selected" data-value="osm">
+                        <span class="option-icon">🗺️</span> OpenStreetMap
+                    </div>
+                    <div class="custom-option" data-value="satellite">
+                        <span class="option-icon">🛰️</span> ดาวเทียม (Esri)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -100,11 +223,69 @@
     const map = L.map("map").setView([13.7563, 100.5018], 10);
     let marker = null;
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: "&copy; OpenStreetMap contributors"
-    }).addTo(map);
+    // นิยาม Tile Layers สำหรับประเภทแผนที่
+// นิยาม Tile Layers สำหรับประเภทแผนที่
+    const baseLayers = {
+        'osm': L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: "&copy; OpenStreetMap contributors"
+        }),
+        'satellite': L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+            maxZoom: 19,
+            attribution: "Tiles &copy; Esri"
+        })
+    };
 
+    // แสดงผล Layer เริ่มต้น (OSM)
+    let currentLayer = baseLayers['osm'].addTo(map);
+
+    // ✅ ฟังก์ชันสลับสไตล์แผนที่ แบบล็อกพิกัดเดิมไว้ไม่ให้เลื่อน
+    function switchLayer(styleKey) {
+        // 1. เก็บพิกัดและระดับซูมปัจจุบันไว้ก่อนสลับ
+        const currentCenter = map.getCenter();
+        const currentZoom = map.getZoom();
+
+        // 2. ลบ Layer เก่า แล้วใส่ Layer ใหม่
+        if (currentLayer) {
+            map.removeLayer(currentLayer);
+        }
+        currentLayer = baseLayers[styleKey].addTo(map);
+
+        // 3. คืนค่าพิกัดเดิม + สั่งให้ Leaflet คำนวณขนาดกรอบใหม่ทันที
+        map.setView(currentCenter, currentZoom, { animate: false });
+        map.invalidateSize();
+    }
+
+    // Logic ควบคุม Custom Dropdown
+    const dropdown = document.getElementById('styleDropdown');
+    const trigger = dropdown.querySelector('.custom-select-trigger');
+    const options = dropdown.querySelectorAll('.custom-option');
+    const selectedText = document.getElementById('selectedOptionText');
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('open');
+    });
+
+    options.forEach(option => {
+        option.addEventListener('click', function(e) {
+            e.stopPropagation(); // ✅ ป้องกัน Event เล็ดลอดไปถึงแผนที่
+            
+            options.forEach(opt => opt.classList.remove('selected'));
+            this.classList.add('selected');
+            selectedText.innerHTML = this.innerHTML;
+            dropdown.classList.remove('open');
+            
+            const styleKey = this.getAttribute('data-value');
+            switchLayer(styleKey);
+        });
+    });
+
+    document.addEventListener('click', () => {
+        dropdown.classList.remove('open');
+    });
+
+    // Event คลิกบนแผนที่
     map.on("click", (e) => {
         updateInputs(e.latlng.lat, e.latlng.lng);
         searchCoordinate();
@@ -229,7 +410,7 @@
             result.textContent = err.message || "ไม่สามารถเชื่อมต่อ Python API ได้";
         }
 
-        // 2. ดึงข้อมูลสำรองจาก OpenStreetMap Nominatim (ทำงานแยกไม่ขัดขวางระบบหลัก)
+        // 2. ดึงข้อมูลสำรองจาก OpenStreetMap Nominatim
         try {
             const osmRes = await fetch(`${NOMINATIM_URL}?lat=${lat}&lon=${lon}&format=json`);
             if (osmRes.ok) {
